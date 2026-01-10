@@ -13,6 +13,53 @@ def _best_locale_value(maybe_localized):
     return maybe_localized or ''
 
 
+def _format_homepage(maybe_homepage):
+    """Return a human-friendly homepage string.
+
+    If the homepage is a dict with locale keys (eg. {'url': {'en-CA': 'https://...'}})
+    include the locale in the output: "Homepage (en-CA): https://...".
+    Otherwise return a simple string URL or repr fallback.
+    """
+    if not maybe_homepage:
+        return ''
+
+    # If it's already a string, return it
+    if isinstance(maybe_homepage, str):
+        return maybe_homepage
+
+    # If it's a dict try common shapes
+    if isinstance(maybe_homepage, dict):
+        # common shape: {'url': {'en-US': 'https://...'}, 'outgoing': {...}}
+        url_field = maybe_homepage.get('url') or maybe_homepage.get('homepage')
+        if isinstance(url_field, dict):
+            # pick the first locale key to display but keep the locale label
+            try:
+                locale_key = next(iter(url_field.keys()))
+                locale_val = url_field.get(locale_key) or ''
+                return f"Homepage ({locale_key}): {locale_val}"
+            except StopIteration:
+                pass
+
+        if isinstance(url_field, str):
+            return url_field
+
+        # fallback: check for 'outgoing' which may be a dict similar to 'url'
+        outgoing = maybe_homepage.get('outgoing')
+        if isinstance(outgoing, dict):
+            try:
+                locale_key = next(iter(outgoing.keys()))
+                locale_val = outgoing.get(locale_key)
+                return f"Homepage ({locale_key}): {locale_val}"
+            except StopIteration:
+                pass
+
+    # Last resort: string representation
+    try:
+        return str(maybe_homepage)
+    except Exception:
+        return ''
+
+
 def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=20):
     """
     Generate RSS feed from AMO search API.
@@ -159,12 +206,16 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=20):
                 perms = str(permissions)
             meta_items.append('Permissions: ' + perms)
         if homepage:
-            meta_items.append(f'Homepage: {homepage}')
+            hp = _format_homepage(homepage)
+            if hp:
+                # _format_homepage may already include the "Homepage (...)" prefix
+                meta_items.append(hp if hp.lower().startswith('homepage') else f'Homepage: {hp}')
         if addon_id:
             meta_items.append(f'ID: {addon_id}')
 
         if meta_items:
-            parts.append('<div style="margin-top:6px;color:#666;font-size:0.95em;">' + ' • '.join(meta_items) + '</div>')
+            # Use a slightly lighter grey so the footer is readable in dark themes
+            parts.append('<div style="margin-top:6px;color:#9aa0a6;font-size:0.95em;">' + ' • '.join(meta_items) + '</div>')
 
         item_description = ET.SubElement(item, "description")
         item_description.text = '\n'.join(parts)
