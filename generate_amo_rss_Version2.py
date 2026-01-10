@@ -2,7 +2,7 @@ import argparse
 import os
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.utils import formatdate
 from urllib.parse import quote_plus
 
@@ -60,7 +60,7 @@ def _format_homepage(maybe_homepage):
         return ''
 
 
-def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=20):
+def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=50, max_items=None, max_days=None):
     """
     Generate RSS feed from AMO search API.
 
@@ -70,36 +70,125 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=20):
       also writes `public/amo_latest_{amo_type}s.xml`.
     """
 
+    headers = {"User-Agent": "amo-addons-rss/1.0 (+https://github.com/cm-fy/amo-add-ons-rss)"}
+
+    collected = []
+
+    # Helper to fetch pages following AMO's `next` links when present
+    def _fetch_following(url):
+        nonlocal collected
+        while url:
+            try:
+                resp = requests.get(url, headers=headers, timeout=30)
+            except Exception as e:
+                print(f"Failed to fetch data from AMO API: {e}")
+                break
+
+            if resp.status_code != 200:
+                print(f"Failed to fetch data from AMO API: {resp.status_code}")
+                break
+
+            data = resp.json()
+            results = data.get('results', [])
+            if not results:
+                break
+
+            collected.extend(results)
+
+            # Stop when we've fetched enough items if max_items is set
+            if max_items and len(collected) >= int(max_items):
+                break
+
+            # Follow AMO-provided next link if available
+            next_url = data.get('next')
+            if next_url:
+                url = next_url
+                continue
+
+            # No 'next' link: if this was a constructed paged URL, fall back
+            break
+
+    # If the caller provided a full search URL, follow its `next` links
     if search_url:
-        api_url = search_url
+        _fetch_following(search_url)
     else:
         base = 'https://addons.mozilla.org/api/v5/addons/search/'
-        params = []
-        params.append('sort=updated')
-        params.append(f'page_size={int(page_size)}')
-        if amo_type:
-            params.append(f'type={quote_plus(str(amo_type))}')
-        if q:
-            params.append(f'q={quote_plus(str(q))}')
-        api_url = base + '?' + '&'.join(params)
+        page = 1
+        while True:
+            params = []
+            params.append('sort=updated')
+            params.append(f'page_size={int(page_size)}')
+            params.append(f'page={page}')
+            if amo_type:
+                params.append(f'type={quote_plus(str(amo_type))}')
+            if q:
+                params.append(f'q={quote_plus(str(q))}')
+            api_url = base + '?' + '&'.join(params)
 
-    headers = {"User-Agent": "amo-addons-rss/1.0 (+https://github.com/cm-fy/amo-add-ons-rss)"}
-    try:
-        response = requests.get(api_url, headers=headers, timeout=30)
-    except Exception as e:
-        print(f"Failed to fetch data from AMO API: {e}")
-        return
+            try:
+                resp = requests.get(api_url, headers=headers, timeout=30)
+            except Exception as e:
+                print(f"Failed to fetch data from AMO API: {e}")
+                break
 
-    if response.status_code != 200:
-        print(f"Failed to fetch data from AMO API: {response.status_code}")
-        try:
-            print(response.text[:1000])
-        except Exception:
-            pass
-        return
+            if resp.status_code != 200:
+                print(f"Failed to fetch data from AMO API: {resp.status_code}")
+                break
 
-    data = response.json()
-    addons = data.get('results', [])
+            data = resp.json()
+            results = data.get('results', [])
+            if not results:
+                break
+
+            collected.extend(results)
+
+            # Stop when we've fetched enough items if max_items is set
+            if max_items and len(collected) >= int(max_items):
+                break
+
+            # Follow AMO-provided next link if available
+            next_url = data.get('next')
+            if next_url:
+                # continue from the provided next URL
+                _fetch_following(next_url)
+                break
+
+            # If fewer results than page_size, we've reached the end
+            if len(results) < int(page_size):
+                break
+
+            page += 1
+
+    # If max_days is supplied, filter out older addons
+    if max_days:
+        def _get_created_dt(a):
+            # Attempt several fields to find a created/updated timestamp
+            for candidate in (
+                a.get('current_version', {}).get('file', {}).get('created'),
+                a.get('current_version', {}).get('created'),
+                a.get('last_updated'),
+                a.get('created'),
+            ):
+                if candidate:
+                    try:
+                        return datetime.fromisoformat(candidate.replace('Z', '+00:00'))
+                    except Exception:
+                        try:
+                            # fallback: try parsing common formats
+                            return datetime.strptime(candidate, '%Y-%m-%dT%H:%M:%S.%fZ')
+                        except Exception:
+                            continue
+            return None
+
+        cutoff = datetime.utcnow() - timedelta(days=int(max_days))
+        filtered = []
+        for a in collected:
+            dt = _get_created_dt(a)
+            if dt is None or dt >= cutoff:
+                filtered.append(a)
+        collected = filtered
+
+    addons = collected
 
     # Create RSS root
     rss = ET.Element("rss", version="2.0")
@@ -178,6 +267,47 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=20):
         homepage = addon.get('homepage') or addon.get('homepage_url') or addon.get('website') or addon.get('url')
         addon_id = addon.get('id') or addon.get('slug') or ''
 
+        # Try to extract Firefox minimum version compatibility from latest version info
+        def _extract_min_firefox_version(a):
+            try:
+                cv = a.get('current_version') or {}
+                # common place: cv['compatibility']
+                compat = cv.get('compatibility') or {}
+                if isinstance(compat, dict):
+                    f = compat.get('firefox') or compat.get('firefox_desktop')
+                    if isinstance(f, dict):
+                        mv = f.get('min_version') or f.get('min')
+                        if mv:
+                            return str(mv)
+
+                # files -> applications
+                files = cv.get('files') or []
+                if files and isinstance(files, list):
+                    for fobj in files:
+                        apps = fobj.get('applications') or fobj.get('application') or {}
+                        if isinstance(apps, dict):
+                            firefox = apps.get('firefox') or apps.get('firefox-desktop') or apps.get('firefox_android')
+                            if isinstance(firefox, dict):
+                                mv = firefox.get('min_version') or firefox.get('min')
+                                if mv:
+                                    return str(mv)
+
+                # file -> applications
+                file0 = cv.get('file') or {}
+                if isinstance(file0, dict):
+                    apps = file0.get('applications') or {}
+                    if isinstance(apps, dict):
+                        firefox = apps.get('firefox')
+                        if isinstance(firefox, dict):
+                            mv = firefox.get('min_version') or firefox.get('min')
+                            if mv:
+                                return str(mv)
+            except Exception:
+                pass
+            return ''
+
+        min_firefox = _extract_min_firefox_version(addon)
+
         # Compose HTML description (will be escaped in XML); many feed readers accept HTML in descriptions
         parts = []
         if icon_url:
@@ -208,8 +338,10 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=20):
         if homepage:
             hp = _format_homepage(homepage)
             if hp:
-                # _format_homepage may already include the "Homepage (...)" prefix
+                # _format_homepage may already include the "Homepage (... )" prefix
                 meta_items.append(hp if hp.lower().startswith('homepage') else f'Homepage: {hp}')
+        if min_firefox:
+            meta_items.append(f'Works with Firefox: {min_firefox} and later')
         if addon_id:
             meta_items.append(f'ID: {addon_id}')
 
@@ -294,17 +426,21 @@ def _env_or_arg():
     parser.add_argument('--search-url', help='Full AMO API search URL to use (overrides other params)')
     parser.add_argument('--type', dest='amo_type', help='AMO type parameter (e.g. extension or theme)')
     parser.add_argument('--q', help='Search query (q param)')
-    parser.add_argument('--page-size', type=int, default=20, help='Number of results to fetch')
+    parser.add_argument('--page-size', type=int, default=50, help='Number of results to fetch per page')
+    parser.add_argument('--max-items', type=int, default=200, help='Maximum total number of items to fetch (across pages)')
+    parser.add_argument('--max-days', type=int, default=0, help='Maximum age in days for items to include (0 = no limit)')
     args = parser.parse_args()
 
     search_url = args.search_url or os.environ.get('AMO_SEARCH_URL')
     amo_type = args.amo_type or os.environ.get('AMO_TYPE')
     q = args.q or os.environ.get('AMO_QUERY')
-    page_size = args.page_size or int(os.environ.get('AMO_PAGE_SIZE', '20'))
+    page_size = args.page_size or int(os.environ.get('AMO_PAGE_SIZE', '50'))
+    max_items = args.max_items or int(os.environ.get('AMO_MAX_ITEMS', '200'))
+    max_days = args.max_days or int(os.environ.get('AMO_MAX_DAYS', '0'))
 
-    return search_url, amo_type, q, page_size
+    return search_url, amo_type, q, page_size, max_items, (max_days if max_days > 0 else None)
 
 
 if __name__ == "__main__":
-    search_url, amo_type, q, page_size = _env_or_arg()
-    generate_rss_feed(search_url=search_url, amo_type=amo_type, q=q, page_size=page_size)
+    search_url, amo_type, q, page_size, max_items, max_days = _env_or_arg()
+    generate_rss_feed(search_url=search_url, amo_type=amo_type, q=q, page_size=page_size, max_items=max_items, max_days=max_days)
