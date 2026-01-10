@@ -5,6 +5,10 @@ on:
     - cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pages: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,16 +25,16 @@ jobs:
       - name: Generate RSS feed
         run: |
           python generate_amo_rss_Version2.py
+      - name: Prepare publish directory
+        run: |
+          mkdir -p public
+          if [ -f amo_latest_addons.xml ]; then mv amo_latest_addons.xml public/; fi
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./
+          publish_dir: ./public
           publish_branch: gh-pages
           keep_files: true
-          destination_dir: .
           user_name: github-actions[bot]
           user_email: github-actions[bot]@users.noreply.github.com
-      - name: Copy feed to root for Pages
-        run: |
-          cp amo_latest_addons.xml ./
