@@ -34,3 +34,4 @@ See `.github/workflows/generate-rss.yml` for workflow details.
 1. Go to your repository Settings > Pages.
 2. Set the source to the `gh-pages` branch, root folder.
 3. The feed will be available at the URL above.
+\n<!-- pages rebuild trigger -->
