@@ -32,9 +32,29 @@ jobs:
         run: |
           mkdir -p public
           if [ -f amo_latest_addons.xml ]; then mv amo_latest_addons.xml public/; fi
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v1
-        with:
-          path: ./public
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
+      - name: Deploy to gh-pages branch
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p _ghpages_clone
+          if git ls-remote --exit-code origin gh-pages; then
+            git clone --branch gh-pages https://x-access-token:${TOKEN}@github.com/${REPO} _ghpages_clone
+          else
+            git clone https://x-access-token:${TOKEN}@github.com/${REPO} _ghpages_clone
+            cd _ghpages_clone
+            git checkout --orphan gh-pages
+            git rm -rf . || true
+            cd ..
+          fi
+          rm -rf _ghpages_clone/*
+          cp -R public/* _ghpages_clone/ || true
+          cd _ghpages_clone
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to deploy"
+          else
+            git commit -m "Deploy Pages: ${{ github.sha }}"
+            git push https://x-access-token:${TOKEN}@github.com/${REPO} gh-pages --force
+          fi
