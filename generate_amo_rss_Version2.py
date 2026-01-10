@@ -5,7 +5,8 @@ from email.utils import formatdate
 
 def generate_rss_feed():
     # Fetch latest add-ons from AMO API
-    api_url = "https://addons.mozilla.org/api/v5/addons/?sort=-last_updated&page_size=20"
+    # Use the search endpoint which returns add-on lists
+    api_url = "https://addons.mozilla.org/api/v5/addons/search/?sort=created&page_size=20"
     headers = {"User-Agent": "amo-addons-rss/1.0 (+https://github.com/cm-fy/amo-add-ons-rss)"}
     response = requests.get(api_url, headers=headers, timeout=30)
     if response.status_code != 200:
