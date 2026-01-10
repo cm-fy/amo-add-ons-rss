@@ -15,31 +15,31 @@ def generate_rss_feed():
         except Exception:
             pass
         return
-    
+
     data = response.json()
     addons = data.get('results', [])
-    
+
     # Create RSS root
     rss = ET.Element("rss", version="2.0")
     channel = ET.SubElement(rss, "channel")
-    
+
     # Channel metadata
     title = ET.SubElement(channel, "title")
     title.text = "Latest Mozilla Add-on Releases"
-    
+
     description = ET.SubElement(channel, "description")
     description.text = "RSS feed of the latest add-on updates from Mozilla Add-ons (AMO)"
-    
+
     link = ET.SubElement(channel, "link")
     link.text = "https://addons.mozilla.org/"
-    
+
     language = ET.SubElement(channel, "language")
     language.text = "en-us"
-    
+
     # Add items
     for addon in addons:
         item = ET.SubElement(channel, "item")
-        
+
         item_title = ET.SubElement(item, "title")
         # name may be a dict keyed by locale or a plain string
         name = addon.get('name')
@@ -49,7 +49,7 @@ def generate_rss_feed():
             title_name = name or ''
         version = addon.get('current_version', {}).get('version', '')
         item_title.text = f"{title_name} v{version}" if title_name or version else 'Unknown'
-        
+
         item_description = ET.SubElement(item, "description")
         summary = addon.get('summary')
         if isinstance(summary, dict):
@@ -59,7 +59,7 @@ def generate_rss_feed():
 
         item_link = ET.SubElement(item, "link")
         item_link.text = f"https://addons.mozilla.org/en-US/firefox/addon/{addon.get('slug', '')}/"
-        
+
         # Use last_updated as pubDate
         created_str = None
         try:
@@ -73,7 +73,7 @@ def generate_rss_feed():
         else:
             # skip pubDate when not available
             pass
-    
+
     # Write to file
     tree = ET.ElementTree(rss)
     # Ensure output directory exists when run in CI
