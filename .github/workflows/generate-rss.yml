@@ -52,5 +52,18 @@ jobs:
             echo "No feed changes to commit"
           else
             git commit -m "Publish generated feeds: ${{ github.sha }} [skip ci]"
-            git push https://x-access-token:${TOKEN}@github.com/${{ github.repository }} HEAD:main
+            # Try push; if rejected because remote advanced, attempt to rebase and push again.
+            if git push https://x-access-token:${TOKEN}@github.com/${{ github.repository }} HEAD:main; then
+              echo "Pushed successfully"
+            else
+              echo "Push rejected, attempting to rebase onto origin/main"
+              git fetch origin main
+              if git rebase origin/main; then
+                git push https://x-access-token:${TOKEN}@github.com/${{ github.repository }} HEAD:main
+              else
+                echo "Rebase failed — aborting rebase and trying force-with-lease push"
+                git rebase --abort || true
+                git push --force-with-lease https://x-access-token:${TOKEN}@github.com/${{ github.repository }} HEAD:main
+              fi
+            fi
           fi
