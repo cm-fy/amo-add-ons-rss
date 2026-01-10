@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'amo_latest_*.xml'
+      - 'public/**'
   schedule:
     - cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:
@@ -25,36 +28,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Generate RSS feed
+      - name: Generate RSS feed (default + type)
+        env:
+          AMO_TYPE: "extension"
         run: |
-          python generate_amo_rss_Version2.py
+          python generate_amo_rss_Version2.py --type "$AMO_TYPE"
       - name: Prepare publish directory
         run: |
           mkdir -p public
+          # If generator wrote top-level feed, move it into public
           if [ -f amo_latest_addons.xml ]; then mv amo_latest_addons.xml public/; fi
-      - name: Deploy to gh-pages branch
+          # Also copy type-specific file (if created) to repo root so Pages can serve it
+          if [ -f public/amo_latest_extensions.xml ]; then cp public/amo_latest_extensions.xml .; fi
+      - name: Commit generated feeds to main
         env:
-          REPO: ${{ github.repository }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          mkdir -p _ghpages_clone
-          if git ls-remote --exit-code origin gh-pages; then
-            git clone --branch gh-pages https://x-access-token:${TOKEN}@github.com/${REPO} _ghpages_clone
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A amo_latest_*.xml public/amo_latest_*.xml || true
+          if git diff --staged --quiet; then
+            echo "No feed changes to commit"
           else
-            git clone https://x-access-token:${TOKEN}@github.com/${REPO} _ghpages_clone
-            cd _ghpages_clone
-            git checkout --orphan gh-pages
-            git rm -rf . || true
-            cd ..
-          fi
-          rm -rf _ghpages_clone/*
-          cp -R public/* _ghpages_clone/ || true
-          cd _ghpages_clone
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to deploy"
-          else
-            git commit -m "Deploy Pages: ${{ github.sha }}"
-            git push https://x-access-token:${TOKEN}@github.com/${REPO} gh-pages --force
+            git commit -m "Publish generated feeds: ${{ github.sha }} [skip ci]"
+            git push https://x-access-token:${TOKEN}@github.com/${{ github.repository }} HEAD:main
           fi
