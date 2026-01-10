@@ -32,12 +32,9 @@ jobs:
         run: |
           mkdir -p public
           if [ -f amo_latest_addons.xml ]; then mv amo_latest_addons.xml public/; fi
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
-          publish_branch: gh-pages
-          keep_files: true
-          user_name: github-actions[bot]
-          user_email: github-actions[bot]@users.noreply.github.com
+          path: ./public
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
