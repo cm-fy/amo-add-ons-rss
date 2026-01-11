@@ -48,6 +48,14 @@ jobs:
           # Ensure extensions/themes are present in public/ (copy back from tmp if needed)
           if [ -f /tmp/amo_latest_extensions.xml ]; then cp /tmp/amo_latest_extensions.xml public/amo_latest_extensions.xml; fi
           if [ -f /tmp/amo_latest_themes.xml ]; then cp /tmp/amo_latest_themes.xml public/amo_latest_themes.xml; fi
+      - name: Freshness check (fail if feed stale)
+        env:
+          AMO_MAX_STALE_HOURS: '6'
+        run: |
+          set -euo pipefail
+          # Run the generator again under a freshness threshold so it exits non-zero when the newest item is older than AMO_MAX_STALE_HOURS
+          python generate_amo_rss_Version2.py --type "extension"
+          python generate_amo_rss_Version2.py
       - name: Prepare publish directory
         run: |
           mkdir -p public
