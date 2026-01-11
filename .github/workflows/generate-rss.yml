@@ -83,30 +83,30 @@ jobs:
           # Also provide a fallback at /favicon.ico by copying the PNG (helps some clients)
           if [ -f favicon.png ]; then cp favicon.png _pages_artifact/favicon.ico; fi
           # Create a minimal index.html at the site root so the homepage doesn't 404
-          cat > _pages_artifact/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>AMO Add-ons RSS</title>
-            <link rel="icon" type="image/x-icon" href="/favicon.ico">
-            <link rel="icon" type="image/png" href="/favicon.png">
-            <link rel="shortcut icon" href="/favicon.ico">
-          </head>
-          <body>
-            <h1>AMO Add-ons RSS</h1>
-            <p>Feeds generated from Mozilla AMO.</p>
-            <ul>
-              <li><a href="amo_latest_addons.xml">Latest Addons (root)</a></li>
-              <li><a href="amo_latest_extensions.xml">Latest Extensions (root)</a></li>
-              <li><a href="amo_latest_themes.xml">Latest Themes (root)</a></li>
-              <li><a href="public/amo_latest_extensions.xml">Latest Extensions (public)</a></li>
-              <li><a href="public/">Public directory</a></li>
-            </ul>
-          </body>
-          </html>
-          HTML
+          (
+            echo '<!doctype html>'
+            echo '<html lang="en">'
+            echo '  <head>'
+            echo '    <meta charset="utf-8">'
+            echo '    <meta name="viewport" content="width=device-width,initial-scale=1">'
+            echo '    <title>AMO Add-ons RSS</title>'
+            echo '    <link rel="icon" type="image/x-icon" href="/favicon.ico">'
+            echo '    <link rel="icon" type="image/png" href="/favicon.png">'
+            echo '    <link rel="shortcut icon" href="/favicon.ico">'
+            echo '  </head>'
+            echo '  <body>'
+            echo '    <h1>AMO Add-ons RSS</h1>'
+            echo '    <p>Feeds generated from Mozilla AMO.</p>'
+            echo '    <ul>'
+            echo '      <li><a href="amo_latest_addons.xml">Latest Addons (root)</a></li>'
+            echo '      <li><a href="amo_latest_extensions.xml">Latest Extensions (root)</a></li>'
+            echo '      <li><a href="amo_latest_themes.xml">Latest Themes (root)</a></li>'
+            echo '      <li><a href="public/amo_latest_extensions.xml">Latest Extensions (public)</a></li>'
+            echo '      <li><a href="public/">Public directory</a></li>'
+            echo '    </ul>'
+            echo '  </body>'
+            echo '</html>'
+          ) > _pages_artifact/index.html
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
