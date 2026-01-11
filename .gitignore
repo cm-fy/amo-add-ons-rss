@@ -1,0 +1,7 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# local monitor logs and pid
+amo workflow/monitor_logs/
+amo workflow/monitor.pid
