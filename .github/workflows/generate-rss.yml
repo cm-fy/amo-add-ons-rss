@@ -60,6 +60,9 @@ jobs:
       - name: Prepare publish directory
         run: |
           mkdir -p public
+          # Ensure repo-root favicons are present in public/ so feed URLs can reference them
+          if [ -f favicon.png ]; then cp favicon.png public/; fi
+          if [ -f favicon.ico ]; then cp favicon.ico public/; fi
           # Publish feeds in two places:
           # - repo root: served as https://<user>.github.io/<repo>/amo_latest_*.xml
           # - public/: served as https://<user>.github.io/<repo>/public/amo_latest_*.xml

@@ -221,6 +221,20 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=50, max_
     language = ET.SubElement(channel, "language")
     language.text = "en-us"
 
+    # Add feed image so feed readers can show a custom icon/logo
+    try:
+        # Absolute URL to the site's favicon; update if your Pages URL changes
+        feed_image_url = 'https://cm-fy.github.io/amo-add-ons-rss/favicon.png'
+        image_el = ET.SubElement(channel, 'image')
+        url_el = ET.SubElement(image_el, 'url')
+        url_el.text = feed_image_url
+        title_el = ET.SubElement(image_el, 'title')
+        title_el.text = 'AMO Add-ons RSS'
+        link_el = ET.SubElement(image_el, 'link')
+        link_el.text = 'https://cm-fy.github.io/amo-add-ons-rss/'
+    except Exception:
+        pass
+
     # Add items
     pub_dates = []
     for addon in addons:
