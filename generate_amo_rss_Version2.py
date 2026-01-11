@@ -1,8 +1,9 @@
 import argparse
 import os
+import sys
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import formatdate
 from urllib.parse import quote_plus
 
@@ -221,6 +222,7 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=50, max_
     language.text = "en-us"
 
     # Add items
+    pub_dates = []
     for addon in addons:
         item = ET.SubElement(channel, "item")
 
@@ -385,6 +387,7 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=50, max_
                 pub_date = datetime.fromisoformat(created_str.replace('Z', '+00:00'))
                 item_pubdate = ET.SubElement(item, "pubDate")
                 item_pubdate.text = formatdate(pub_date.timestamp())
+                pub_dates.append(pub_date)
             except Exception:
                 pass
 
@@ -424,17 +427,43 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=50, max_
     # This prevents a subsequent type-specific run (e.g. --type extension)
     # from overwriting the combined `amo_latest_addons.xml` output.
     tree = ET.ElementTree(rss)
+
+    # Summary information
+    items_count = len(addons)
+    newest_pub = None
+    if pub_dates:
+        newest_pub = max(pub_dates).astimezone(timezone.utc)
+
     if not amo_type:
         default_outpath = os.path.join(outdir, 'amo_latest_addons.xml')
         tree.write(default_outpath, encoding="utf-8", xml_declaration=True)
-        print(f"RSS feed generated: {default_outpath}")
+        if newest_pub:
+            print(f"RSS feed generated: {default_outpath} (items={items_count}, newest_pubDate={newest_pub.isoformat()})")
+        else:
+            print(f"RSS feed generated: {default_outpath} (items={items_count})")
 
     # Always write a type-specific file when `amo_type` is provided
     if amo_type:
         safe_label = ''.join(ch for ch in str(file_label or amo_type) if ch.isalnum() or ch in ('_', '-')).lower()
         type_outpath = os.path.join(outdir, f'amo_latest_{safe_label}s.xml')
         tree.write(type_outpath, encoding="utf-8", xml_declaration=True)
-        print(f"Type-specific RSS feed generated: {type_outpath}")
+        if newest_pub:
+            print(f"Type-specific RSS feed generated: {type_outpath} (items={items_count}, newest_pubDate={newest_pub.isoformat()})")
+        else:
+            print(f"Type-specific RSS feed generated: {type_outpath} (items={items_count})")
+
+    # Optional freshness check controlled by AMO_MAX_STALE_HOURS (hours)
+    max_stale = os.environ.get('AMO_MAX_STALE_HOURS')
+    if max_stale:
+        try:
+            hours = float(max_stale)
+            if newest_pub:
+                age_hours = (datetime.now(timezone.utc) - newest_pub).total_seconds() / 3600.0
+                if age_hours > hours:
+                    print(f"ERROR: feed newest pubDate {newest_pub.isoformat()} is older than {hours} hours (age {age_hours:.1f}h).")
+                    sys.exit(2)
+        except Exception as e:
+            print(f"Could not evaluate AMO_MAX_STALE_HOURS: {e}")
 
 
 def _env_or_arg():
