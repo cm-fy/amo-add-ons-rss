@@ -8,7 +8,7 @@ on:
       - 'amo_latest_*.xml'
       - 'public/**'
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
+    - cron: '0 * * * *'  # Every hour
   workflow_dispatch:
 
 permissions:
@@ -28,18 +28,35 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Generate RSS feed (default + type)
-        env:
-          AMO_TYPE: "extension"
+      - name: Generate RSS feeds (addons, extensions, themes)
         run: |
-          python generate_amo_rss_Version2.py --type "$AMO_TYPE"
+          set -euo pipefail
+          # 1) Generate the default "addons" feed (all types)
+          python generate_amo_rss_Version2.py
+          if [ -f public/amo_latest_addons.xml ]; then cp public/amo_latest_addons.xml /tmp/amo_latest_addons.xml; fi
+
+          # 2) Generate extensions-only feed
+          python generate_amo_rss_Version2.py --type "extension"
+          if [ -f public/amo_latest_extensions.xml ]; then cp public/amo_latest_extensions.xml /tmp/amo_latest_extensions.xml; fi
+
+          # 3) Generate themes-only feed
+          python generate_amo_rss_Version2.py --type "theme"
+          if [ -f public/amo_latest_themes.xml ]; then cp public/amo_latest_themes.xml /tmp/amo_latest_themes.xml; fi
+
+          # Restore the canonical full addons feed into public/
+          if [ -f /tmp/amo_latest_addons.xml ]; then cp /tmp/amo_latest_addons.xml public/amo_latest_addons.xml; fi
+          # Ensure extensions/themes are present in public/ (copy back from tmp if needed)
+          if [ -f /tmp/amo_latest_extensions.xml ]; then cp /tmp/amo_latest_extensions.xml public/amo_latest_extensions.xml; fi
+          if [ -f /tmp/amo_latest_themes.xml ]; then cp /tmp/amo_latest_themes.xml public/amo_latest_themes.xml; fi
       - name: Prepare publish directory
         run: |
           mkdir -p public
-          # If generator wrote top-level feed, move it into public
-          if [ -f amo_latest_addons.xml ]; then mv amo_latest_addons.xml public/; fi
-          # Also copy type-specific file (if created) to repo root so Pages can serve it
+          # Publish feeds in two places:
+          # - repo root: served as https://<user>.github.io/<repo>/amo_latest_*.xml
+          # - public/: served as https://<user>.github.io/<repo>/public/amo_latest_*.xml
+          if [ -f public/amo_latest_addons.xml ]; then cp public/amo_latest_addons.xml .; fi
           if [ -f public/amo_latest_extensions.xml ]; then cp public/amo_latest_extensions.xml .; fi
+          if [ -f public/amo_latest_themes.xml ]; then cp public/amo_latest_themes.xml .; fi
       - name: Commit generated feeds to main
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -51,7 +68,9 @@ jobs:
           if git diff --staged --quiet; then
             echo "No feed changes to commit"
           else
-            git commit -m "Publish generated feeds: ${{ github.sha }} [skip ci]"
+            # Do NOT use [skip ci] here; it prevents the Pages deployment workflow
+            # from running on the generated commits.
+            git commit -m "Publish generated feeds: ${{ github.sha }}"
             # Try push; if rejected because remote advanced, attempt to rebase and push again.
             if git push https://x-access-token:${TOKEN}@github.com/${{ github.repository }} HEAD:main; then
               echo "Pushed successfully"
