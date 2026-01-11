@@ -65,16 +65,11 @@ jobs:
           if [ -f public/amo_latest_addons.xml ]; then cp public/amo_latest_addons.xml .; fi
           if [ -f public/amo_latest_extensions.xml ]; then cp public/amo_latest_extensions.xml .; fi
           if [ -f public/amo_latest_themes.xml ]; then cp public/amo_latest_themes.xml .; fi
-      - name: Configure Pages
-        uses: actions/configure-pages@v3
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v1
+      - name: Deploy to GitHub Pages (gh-pages branch)
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          path: public
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
 
       - name: Commit generated feeds to main
         env:
