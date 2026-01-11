@@ -80,6 +80,8 @@ jobs:
           # Also copy repo-root .ico or .png favicon if present
           if [ -f favicon.ico ]; then cp favicon.ico _pages_artifact/favicon.ico; fi
           if [ -f favicon.png ]; then cp favicon.png _pages_artifact/favicon.png; fi
+          # Also provide a fallback at /favicon.ico by copying the PNG (helps some clients)
+          if [ -f favicon.png ]; then cp favicon.png _pages_artifact/favicon.ico; fi
           # Create a minimal index.html at the site root so the homepage doesn't 404
           cat > _pages_artifact/index.html <<'HTML'
           <!doctype html>
@@ -88,7 +90,8 @@ jobs:
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>AMO Add-ons RSS</title>
-            <link rel="icon" href="/favicon.png">
+            <link rel="icon" type="image/png" href="/favicon.png">
+            <link rel="shortcut icon" href="/favicon.png">
           </head>
           <body>
             <h1>AMO Add-ons RSS</h1>
