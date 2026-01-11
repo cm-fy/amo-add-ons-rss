@@ -77,8 +77,9 @@ jobs:
           if [ -d public ]; then cp -r public _pages_artifact/; fi
           # If a favicon exists in public/, copy it to site root in the artifact
           if [ -f public/favicon.ico ]; then cp public/favicon.ico _pages_artifact/favicon.ico; fi
-          # Also copy repo-root favicon if present
+          # Also copy repo-root .ico or .png favicon if present
           if [ -f favicon.ico ]; then cp favicon.ico _pages_artifact/favicon.ico; fi
+          if [ -f favicon.png ]; then cp favicon.png _pages_artifact/favicon.png; fi
           # Create a minimal index.html at the site root so the homepage doesn't 404
           cat > _pages_artifact/index.html <<'HTML'
           <!doctype html>
@@ -87,7 +88,7 @@ jobs:
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>AMO Add-ons RSS</title>
-            <link rel="icon" href="/favicon.ico">
+            <link rel="icon" href="/favicon.png">
           </head>
           <body>
             <h1>AMO Add-ons RSS</h1>
