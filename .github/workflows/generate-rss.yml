@@ -66,10 +66,19 @@ jobs:
           if [ -f public/amo_latest_addons.xml ]; then cp public/amo_latest_addons.xml .; fi
           if [ -f public/amo_latest_extensions.xml ]; then cp public/amo_latest_extensions.xml .; fi
           if [ -f public/amo_latest_themes.xml ]; then cp public/amo_latest_themes.xml .; fi
+      - name: Prepare Pages artifact (root + public)
+        run: |
+          mkdir -p _pages_artifact
+          # Copy root-level XMLs
+          if [ -f amo_latest_addons.xml ]; then cp amo_latest_addons.xml _pages_artifact/; fi
+          if [ -f amo_latest_extensions.xml ]; then cp amo_latest_extensions.xml _pages_artifact/; fi
+          if [ -f amo_latest_themes.xml ]; then cp amo_latest_themes.xml _pages_artifact/; fi
+          # Copy public/ directory contents
+          if [ -d public ]; then cp -r public _pages_artifact/; fi
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./public
+          path: ./_pages_artifact
 
       - name: Commit generated feeds to main
         env:
