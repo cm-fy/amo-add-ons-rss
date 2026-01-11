@@ -75,6 +75,28 @@ jobs:
           if [ -f amo_latest_themes.xml ]; then cp amo_latest_themes.xml _pages_artifact/; fi
           # Copy public/ directory contents
           if [ -d public ]; then cp -r public _pages_artifact/; fi
+          # Create a minimal index.html at the site root so the homepage doesn't 404
+          cat > _pages_artifact/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>AMO Add-ons RSS</title>
+          </head>
+          <body>
+            <h1>AMO Add-ons RSS</h1>
+            <p>Feeds generated from Mozilla AMO.</p>
+            <ul>
+              <li><a href="amo_latest_addons.xml">Latest Addons (root)</a></li>
+              <li><a href="amo_latest_extensions.xml">Latest Extensions (root)</a></li>
+              <li><a href="amo_latest_themes.xml">Latest Themes (root)</a></li>
+              <li><a href="public/amo_latest_extensions.xml">Latest Extensions (public)</a></li>
+              <li><a href="public/">Public directory</a></li>
+            </ul>
+          </body>
+          </html>
+          HTML
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
