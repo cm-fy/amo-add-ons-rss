@@ -75,6 +75,8 @@ jobs:
           if [ -f amo_latest_themes.xml ]; then cp amo_latest_themes.xml _pages_artifact/; fi
           # Copy public/ directory contents
           if [ -d public ]; then cp -r public _pages_artifact/; fi
+          # If a favicon exists in public/, copy it to site root in the artifact
+          if [ -f public/favicon.ico ]; then cp public/favicon.ico _pages_artifact/favicon.ico; fi
           # Create a minimal index.html at the site root so the homepage doesn't 404
           cat > _pages_artifact/index.html <<'HTML'
           <!doctype html>
@@ -83,6 +85,7 @@ jobs:
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>AMO Add-ons RSS</title>
+            <link rel="icon" href="/favicon.ico">
           </head>
           <body>
             <h1>AMO Add-ons RSS</h1>
