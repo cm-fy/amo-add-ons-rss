@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss version="2.0"><channel><title>Latest Mozilla Add-on Releases</title><description>RSS feed of the latest add-on updates from Mozilla Add-ons (AMO)</description><link>https://addons.mozilla.org/</link><language>en-us</language><item><title>Bookmark Manager Zero v3.8</title><description>&lt;img src="https://addons.mozilla.org/user-media/addon_icons/2956/2956975-64.png?modified=3eb9208b" alt="icon" style="float:left;margin:0 10px 6px 0;width:64px;height:64

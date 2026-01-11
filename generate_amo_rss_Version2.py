@@ -108,6 +108,19 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=50, max_
             # No 'next' link: if this was a constructed paged URL, fall back
             break
 
+    # Normalize requested type for API vs filename (allow aliases like "theme")
+    api_type = None
+    file_label = None
+    if amo_type:
+        at = str(amo_type).lower()
+        if at in ('theme', 'themes'):
+            api_type = 'statictheme'
+            file_label = 'theme'
+        else:
+            api_type = at
+            # ensure a singular label for filenames (e.g. 'extension' -> 'extension')
+            file_label = at[:-1] if at.endswith('s') else at
+
     # If the caller provided a full search URL, follow its `next` links
     if search_url:
         _fetch_following(search_url)
@@ -119,8 +132,8 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=50, max_
             params.append('sort=updated')
             params.append(f'page_size={int(page_size)}')
             params.append(f'page={page}')
-            if amo_type:
-                params.append(f'type={quote_plus(str(amo_type))}')
+            if api_type:
+                params.append(f'type={quote_plus(str(api_type))}')
             if q:
                 params.append(f'q={quote_plus(str(q))}')
             api_url = base + '?' + '&'.join(params)
@@ -407,16 +420,19 @@ def generate_rss_feed(search_url=None, amo_type=None, q=None, page_size=50, max_
     outdir = os.path.join(os.getcwd(), 'public')
     os.makedirs(outdir, exist_ok=True)
 
-    # Always write the default feed name
-    default_outpath = os.path.join(outdir, 'amo_latest_addons.xml')
+    # Write the default feed only when no specific `amo_type` was requested.
+    # This prevents a subsequent type-specific run (e.g. --type extension)
+    # from overwriting the combined `amo_latest_addons.xml` output.
     tree = ET.ElementTree(rss)
-    tree.write(default_outpath, encoding="utf-8", xml_declaration=True)
-    print(f"RSS feed generated: {default_outpath}")
+    if not amo_type:
+        default_outpath = os.path.join(outdir, 'amo_latest_addons.xml')
+        tree.write(default_outpath, encoding="utf-8", xml_declaration=True)
+        print(f"RSS feed generated: {default_outpath}")
 
-    # Also write a type-specific file if requested
+    # Always write a type-specific file when `amo_type` is provided
     if amo_type:
-        safe_type = ''.join(ch for ch in str(amo_type) if ch.isalnum() or ch in ('_', '-')).lower()
-        type_outpath = os.path.join(outdir, f'amo_latest_{safe_type}s.xml')
+        safe_label = ''.join(ch for ch in str(file_label or amo_type) if ch.isalnum() or ch in ('_', '-')).lower()
+        type_outpath = os.path.join(outdir, f'amo_latest_{safe_label}s.xml')
         tree.write(type_outpath, encoding="utf-8", xml_declaration=True)
         print(f"Type-specific RSS feed generated: {type_outpath}")
 
